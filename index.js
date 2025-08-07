@@ -1,7 +1,10 @@
 const http = require('http')
 const express = require('express')
 const morgan = require('morgan');
+const cors = require('cors');
 const app = express()
+
+app.use(cors());
 //permite recibir datos en formato json
 app.use(express.json())
 // Usar morgan en modo 'dev' (colores y detalles resumidos)
