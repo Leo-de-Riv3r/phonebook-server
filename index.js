@@ -9,6 +9,7 @@ app.use(cors());
 app.use(express.json())
 // Usar morgan en modo 'dev' (colores y detalles resumidos)
 app.use(morgan('tiny'));
+app.use(express.static('dist'))
 
 let contacts = [
     { 
