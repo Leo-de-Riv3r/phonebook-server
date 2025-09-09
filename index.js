@@ -1,8 +1,28 @@
-const http = require('http')
-const express = require('express')
+//--test-concurrency=1 to test without concurrency issues
+require('express-async-errors')
 const morgan = require('morgan');
 const cors = require('cors');
+//para manejar errores asincronos sin usar try/catch
+const express = require('express')
 const app = express()
+const config = require('./utils/config')
+const logger = require('./utils/logger')
+const contactsRouter = require('./controllers/contacts')
+const usersRouter = require('./controllers/users')
+const middleware = require('./utils/middleware')
+const loginRouter = require('./controllers/login')
+const testingRouter = require('./controllers/testing')
+const mongoose = require('mongoose')
+
+mongoose.set('strictQuery', false)
+logger.info('connecting to', config.MONGODB_URI)
+mongoose.connect(config.MONGODB_URI, { dbName: "phonebook" })
+  .then(() => {
+    logger.info('connected to MongoDB')
+  })
+  .catch((error) => {
+    logger.error('error connecting to MongoDB:', error.message)
+})
 
 app.use(cors());
 //permite recibir datos en formato json
@@ -11,81 +31,23 @@ app.use(express.json())
 app.use(morgan('tiny'));
 app.use(express.static('dist'))
 
-let contacts = [
-    { 
-      "id": 1,
-      "name": "Arto Hellas", 
-      "number": "040-123456"
-    },
-    { 
-      "id": 2,
-      "name": "Ada Lovelace", 
-      "number": "39-44-5323523"
-    },
-    { 
-      "id": 3,
-      "name": "Dan Abramov", 
-      "number": "12-43-234345"
-    },
-    { 
-      "id": 4,
-      "name": "Mary Poppendieck", 
-      "number": "39-23-6423122"
-    }
-]
-
-app.get('/', (request, response) => {
-  response.send('<h1>Hello World!</h1>')
-})
-
-app.get('/api/contacts', (request, response) => {
-  response.json(contacts)
-})
-
-app.get('/api/contacts/:id', (request, response) => {
-  const id = Number(request.params.id)
-  const note = contacts.find(note => note.id === id)
-   if (note) {
-    response.json(note)
-  } else {
-    response.status(404).end()
-  }
-})
-
-const generateId = () => {
-  const maxId = contacts.length > 0
-    ? Math.max(...contacts.map(n => n.id))
-    : 0
-  return maxId + 1
+app.use(middleware.requestLogger)
+app.use('/api/contacts', contactsRouter)
+app.use('/api/users', usersRouter)
+app.use('/api/login', loginRouter)
+if (process.env.NODE_ENV === 'test') {
+  app.use('/api/testing', testingRouter)
 }
 
-// app.post('/api/contacts', (request, response) => {
-//   const body = request.body
 
-//   if (!body.content) {
-//     return response.status(400).json({ 
-//       error: 'content missing' 
-//     })
-//   }
+app.use(middleware.tokenExtractor)
+app.use(middleware.unknownEndpoint)
+app.use(middleware.errorHandler)
 
-//   const note = {
-//     content: body.content,
-//     important: Boolean(body.important) || false,
-//     id: generateId(),
-//   }
+const PORT = 3001
+app.listen(PORT, () => {
+  logger.info(`Server running on port ${PORT}`)
+})
 
-//   notes = notes.concat(note)
-
-//   response.json(note)
-// })
-
-//middleware
-const unknownEndpoint = (request, response) => {
-  response.status(404).send({ error: 'unknown endpoint' })
-}
-
-app.use(unknownEndpoint)
-
-const PORT = process.env.PORT || 3001
-app.listen(PORT)
-console.log(`Server running on port ${PORT}`)
+//super important to test the app
+module.exports = app
